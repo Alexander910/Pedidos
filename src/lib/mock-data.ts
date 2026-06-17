@@ -2,7 +2,7 @@ export interface Category { key: string; name: string; count: number; }
 export interface FilterOption { key: string; label: string; options: [string, string][]; }
 export interface Store { id: number; name: string; cat: string; sub: string; price: number; distance: number; eta: number; rating: number; promo: string[]; badge: string; badgeText: string; img: string; }
 export interface MenuItem { id: string; name: string; desc: string; price: number; img: string; }
-export interface Business { id: number; name: string; category: string; rating: number; img: string; }
+export interface Business { id: number; name: string; category: string; rating: number; img: string; image: string; deliveryTime: string; deliveryFee: number; tags: string[]; }
 
 export const CATEGORIES: Category[] = [
   { key: 'restaurantes', name: 'Restaurantes', count: 412 },
@@ -77,12 +77,12 @@ export const MENU: Record<string, MenuItem[]> = {
 };
 
 export const MOCK_BUSINESSES: Business[] = [
-  { id:1, name:'La Brasa Dorada', category:'Restaurantes', rating:4.7, img:'https://picsum.photos/seed/brasa9/200/200' },
-  { id:2, name:'Sushi Nami', category:'Restaurantes · Asiática', rating:4.8, img:'https://picsum.photos/seed/sushi9/200/200' },
-  { id:3, name:'Café Andino', category:'Cafetería', rating:4.6, img:'https://picsum.photos/seed/cafe9/200/200' },
-  { id:4, name:'Súper Central', category:'Supermercado', rating:4.5, img:'https://picsum.photos/seed/super9/200/200' },
-  { id:5, name:'Farmacia VidaPlus', category:'Farmacia', rating:4.9, img:'https://picsum.photos/seed/farma9/200/200' },
-  { id:6, name:'Panadería San José', category:'Panadería', rating:4.7, img:'https://picsum.photos/seed/pan9/200/200' },
-  { id:7, name:'Verde Fresco', category:'Frutería', rating:4.6, img:'https://picsum.photos/seed/fruta9/200/200' },
-  { id:8, name:'Trattoria Bella', category:'Restaurantes · Italiana', rating:4.8, img:'https://picsum.photos/seed/pasta9/200/200' }
+  { id:1, name:'La Brasa Dorada', category:'Restaurantes', rating:4.7, img:'https://picsum.photos/seed/brasa9/200/200', image:'https://picsum.photos/seed/brasa9/480/320', deliveryTime:'15-25 min', deliveryFee:2.50, tags:['Pollo', 'Comida Rápida', 'Papas'] },
+  { id:2, name:'Sushi Nami', category:'Restaurantes · Asiática', rating:4.8, img:'https://picsum.photos/seed/sushi9/200/200', image:'https://picsum.photos/seed/sushi9/480/320', deliveryTime:'20-30 min', deliveryFee:3.00, tags:['Sushi', 'Japonesa', 'Asiática'] },
+  { id:3, name:'Café Andino', category:'Cafetería', rating:4.6, img:'https://picsum.photos/seed/cafe9/200/200', image:'https://picsum.photos/seed/cafe9/480/320', deliveryTime:'10-20 min', deliveryFee:1.50, tags:['Café', 'Bebidas', 'Postres'] },
+  { id:4, name:'Súper Central', category:'Supermercado', rating:4.5, img:'https://picsum.photos/seed/super9/200/200', image:'https://picsum.photos/seed/super9/480/320', deliveryTime:'30-40 min', deliveryFee:4.00, tags:['Abarrotes', 'Supermercado', 'Bebidas'] },
+  { id:5, name:'Farmacia VidaPlus', category:'Farmacia', rating:4.9, img:'https://picsum.photos/seed/farma9/200/200', image:'https://picsum.photos/seed/farma9/480/320', deliveryTime:'15-20 min', deliveryFee:2.00, tags:['Medicamentos', 'Farmacia', 'Cuidado Personal'] },
+  { id:6, name:'Panadería San José', category:'Panadería', rating:4.7, img:'https://picsum.photos/seed/pan9/200/200', image:'https://picsum.photos/seed/pan9/480/320', deliveryTime:'10-15 min', deliveryFee:1.00, tags:['Pan', 'Postres', 'Cafetería'] },
+  { id:7, name:'Verde Fresco', category:'Frutería', rating:4.6, img:'https://picsum.photos/seed/fruta9/200/200', image:'https://picsum.photos/seed/fruta9/480/320', deliveryTime:'20-25 min', deliveryFee:2.50, tags:['Frutas', 'Verduras', 'Saludable'] },
+  { id:8, name:'Trattoria Bella', category:'Restaurantes · Italiana', rating:4.8, img:'https://picsum.photos/seed/pasta9/200/200', image:'https://picsum.photos/seed/pasta9/480/320', deliveryTime:'25-35 min', deliveryFee:3.50, tags:['Pasta', 'Pizza', 'Italiana'] }
 ];

@@ -16,12 +16,12 @@ export default function OrderTrackingPage({
   return (
     <div className="container mx-auto px-4 py-8 flex-1 max-w-3xl">
       <div className="mb-8">
-        <Button variant="ghost" asChild className="mb-4 -ml-4 text-muted-foreground hover:text-foreground">
-          <Link href="/">
+        <Link href="/">
+          <Button variant="ghost" className="mb-4 -ml-4 text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Volver al inicio
-          </Link>
-        </Button>
+          </Button>
+        </Link>
         <h1 className="text-3xl font-bold">Orden Confirmada</h1>
         <p className="text-muted-foreground mt-1">ID de Orden: <span className="font-mono text-foreground">{id}</span></p>
       </div>

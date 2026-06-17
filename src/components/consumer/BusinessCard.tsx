@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 
 export interface BusinessData {
-  id: string;
+  id: string | number;
   name: string;
   category: string;
   rating: number;

@@ -10,7 +10,7 @@ export default async function BusinessPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const business = MOCK_BUSINESSES.find(b => b.id === id);
+  const business = MOCK_BUSINESSES.find(b => b.id === Number(id));
   
   if (!business) {
     notFound();
@@ -59,9 +59,11 @@ export default async function BusinessPage({
             </div>
             
             <div className="flex gap-4">
-              <Button asChild size="lg" className="w-full md:w-auto px-8 text-lg font-semibold">
-                <Link href={`/business/${id}/menu`}>Ver Menú Completo</Link>
-              </Button>
+              <Link href={`/business/${id}/menu`}>
+                <Button size="lg" className="w-full md:w-auto px-8 text-lg font-semibold">
+                  Ver Menú Completo
+                </Button>
+              </Link>
             </div>
           </div>
           

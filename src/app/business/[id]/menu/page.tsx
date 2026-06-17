@@ -24,7 +24,7 @@ export default function MenuPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const business = MOCK_BUSINESSES.find(b => b.id === id);
+  const business = MOCK_BUSINESSES.find(b => b.id === Number(id));
   const { addItem, totalItems, totalPrice } = useCartStore();
 
   if (!business) {
@@ -95,11 +95,11 @@ export default function MenuPage({
                 <p className="font-bold text-lg">${totalPrice().toFixed(2)}</p>
               </div>
             </div>
-            <Button asChild variant="secondary" className="font-bold rounded-xl px-6">
-              <Link href="/checkout/step1">
+            <Link href="/checkout/step1">
+              <Button variant="secondary" className="font-bold rounded-xl px-6">
                 <ShoppingCart className="w-4 h-4 mr-2" /> Ir a Pagar
-              </Link>
-            </Button>
+              </Button>
+            </Link>
           </div>
         </motion.div>
       )}

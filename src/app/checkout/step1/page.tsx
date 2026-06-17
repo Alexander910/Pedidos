@@ -16,9 +16,9 @@ export default function CheckoutStep1() {
       <div className="container mx-auto px-4 py-20 text-center flex-1">
         <h1 className="text-2xl font-bold mb-4">Tu carrito está vacío</h1>
         <p className="text-muted-foreground mb-8">Agrega algunos productos antes de proceder al pago.</p>
-        <Button asChild>
-          <Link href="/">Volver al inicio</Link>
-        </Button>
+        <Link href="/">
+          <Button>Volver al inicio</Button>
+        </Link>
       </div>
     );
   }
