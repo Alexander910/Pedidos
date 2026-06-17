@@ -1,23 +1,77 @@
+"use client";
+
+import { useState } from "react";
+import { NavBar } from "@/components/consumer/NavBar";
 import { HeroSection } from "@/components/consumer/HeroSection";
-import { BusinessCard } from "@/components/consumer/BusinessCard";
-import { MOCK_BUSINESSES } from "@/lib/mock-data";
+import { Categories } from "@/components/consumer/Categories";
+import { FilterSidebar } from "@/components/consumer/FilterSidebar";
+import { StoreGrid } from "@/components/consumer/StoreGrid";
+import type { ActiveFilters } from "@/components/consumer/FilterSidebar";
+
+const EMPTY_FILTERS: ActiveFilters = {
+  cat: new Set(),
+  price: new Set(),
+  distance: new Set(),
+  time: new Set(),
+  promo: new Set(),
+  rating: new Set(),
+};
 
 export default function Home() {
+  const [filters, setFilters] = useState<ActiveFilters>(EMPTY_FILTERS);
+
+  const scrollToStores = () => {
+    document.getElementById("stores-section")?.scrollIntoView({ behavior: "smooth" });
+  };
+  const scrollToCategories = () => {
+    document.getElementById("categories-section")?.scrollIntoView({ behavior: "smooth" });
+  };
+
   return (
-    <main className="flex-1 flex flex-col min-h-screen">
-      <HeroSection />
-      
-      <section className="container mx-auto px-4 md:px-6 py-12">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-3xl font-bold tracking-tight">Populares cerca de ti</h2>
+    <div style={{ minHeight: "100vh", background: "#f8f8fa", display: "flex", flexDirection: "column" }}>
+      <NavBar />
+
+      <HeroSection onOrderNow={scrollToStores} onExplore={scrollToCategories} />
+
+      <div id="categories-section">
+        <Categories />
+      </div>
+
+      {/* Main content: sidebar + store grid */}
+      <div
+        id="stores-section"
+        style={{
+          flex: 1,
+          maxWidth: 1280,
+          margin: "0 auto",
+          width: "100%",
+          padding: "32px 24px 64px",
+          display: "flex",
+          gap: 28,
+          alignItems: "flex-start",
+        }}
+      >
+        {/* Left: Filters */}
+        <FilterSidebar onChange={setFilters} />
+
+        {/* Right: Store grid */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <StoreGrid filters={filters} />
         </div>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {MOCK_BUSINESSES.map((business) => (
-            <BusinessCard key={business.id} business={business} />
-          ))}
-        </div>
-      </section>
-    </main>
+      </div>
+
+      <footer
+        style={{
+          textAlign: "center",
+          padding: "24px",
+          color: "#9A9AA4",
+          fontSize: 12.5,
+          borderTop: "1px solid #e8e8ec",
+          background: "#fff",
+        }}
+      >
+        © 2026 Pedidos Ya — Plataforma de pedidos y delivery
+      </footer>
+    </div>
   );
 }
