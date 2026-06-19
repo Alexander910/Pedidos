@@ -1,0 +1,22 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper function
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // User profile images
+    match /users/{userId}/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Delivery proofs (photos/signatures)
+    match /orders/{orderId}/{allPaths=**} {
+      allow read: if isSignedIn();
+      // Only authenticated users can upload proof documents
+      allow write: if isSignedIn();
+    }
+  }
+}

@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 224 71.4% 4.1%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 71.4% 4.1%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71.4% 4.1%;
+
+    --primary: 19.3 82.3% 50.8%; /* Envíos Ya Delivery Orange #E85D1B */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 201 21% 94%; /* Soft Blue-Gray tint */
+    --secondary-foreground: 201 21% 37%; /* Corporate Blue-Gray #4A6472 */
+
+    --muted: 201 15% 94%;
+    --muted-foreground: 201 21% 37%;
+
+    --accent: 21.1 84.7% 58.4%; /* Light Orange #F07A3A */
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 201 15% 90%;
+    --input: 201 15% 90%;
+    --ring: 19.3 82.3% 50.8%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 201 21% 6%;
+    --foreground: 210 20% 98%;
+
+    --card: 201 21% 9%;
+    --card-foreground: 210 20% 98%;
+
+    --popover: 201 21% 9%;
+    --popover-foreground: 210 20% 98%;
+
+    --primary: 19.3 82.3% 50.8%; /* Orange */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 201 21% 18%; /* Dark Blue-Gray */
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 201 21% 15%;
+    --muted-foreground: 201 15% 65%;
+
+    --accent: 21.1 84.7% 58.4%; /* Light Orange */
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 201 21% 18%;
+    --input: 201 21% 18%;
+    --ring: 19.3 82.3% 50.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}

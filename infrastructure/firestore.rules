@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Basic helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function getUserRole() {
+      return request.auth.token.role;
+    }
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    // Profiles
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (isOwner(uid) || getUserRole() == 'admin');
+    }
+
+    // Drivers GPS and statistics
+    match /drivers/{uid} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (isOwner(uid) || getUserRole() == 'admin' || getUserRole() == 'dispatcher');
+    }
+
+    // Clients profile metadata
+    match /clients/{uid} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (isOwner(uid) || getUserRole() == 'admin');
+    }
+
+    // Orders logistics data
+    match /orders/{orderId} {
+      allow read: if isSignedIn() && (
+        getUserRole() == 'admin' || 
+        getUserRole() == 'dispatcher' || 
+        resource.data.clientId == request.auth.uid || 
+        resource.data.driverId == request.auth.uid
+      );
+      // Create is allowed for clients and dispatchers
+      allow create: if isSignedIn() && (getUserRole() == 'client' || getUserRole() == 'dispatcher' || getUserRole() == 'admin');
+      // Updates are validated
+      allow update: if isSignedIn() && (
+        getUserRole() == 'admin' || 
+        getUserRole() == 'dispatcher' ||
+        resource.data.driverId == request.auth.uid
+      );
+      allow delete: if isSignedIn() && getUserRole() == 'admin';
+    }
+
+    // Transactions ledgers (read-only for drivers/clients, write-only for admins)
+    match /transactions/{txnId} {
+      allow read: if isSignedIn() && (getUserRole() == 'admin' || resource.data.driverId == request.auth.uid);
+      allow write: if isSignedIn() && getUserRole() == 'admin';
+    }
+  }
+}
