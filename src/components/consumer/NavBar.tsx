@@ -1,7 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, MapPin, ShoppingCart, ChevronDown, User } from "lucide-react";
+import { signInWithGoogle, auth } from "@/firebase/client";
+import { onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import Link from "next/link";
 
 interface NavBarProps {
@@ -12,6 +21,14 @@ interface NavBarProps {
 
 export function NavBar({ cartCount = 0, cartTotal = 0, onCartClick }: NavBarProps) {
   const [search, setSearch] = useState("");
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+    });
+    return () => unsubscribe();
+  }, []);
 
   return (
     <nav
@@ -90,23 +107,6 @@ export function NavBar({ cartCount = 0, cartTotal = 0, onCartClick }: NavBarProp
 
         {/* Right actions */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto", flexShrink: 0 }}>
-          {/* Profile */}
-          <button
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: "50%",
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-            }}
-          >
-            <User size={18} color="#fff" />
-          </button>
-
           {/* Cart */}
           <button
             onClick={onCartClick}
@@ -133,6 +133,69 @@ export function NavBar({ cartCount = 0, cartTotal = 0, onCartClick }: NavBarProp
               <span>Carrito</span>
             )}
           </button>
+
+          {/* Grouped user controls (dropdown menu) */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  title={user.displayName || "Cuenta"}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    height: 40,
+                    padding: "0 10px",
+                    borderRadius: 999,
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    color: "#fff",
+                    cursor: "pointer",
+                  }}
+                >
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt="avatar" style={{ width: 28, height: 28, borderRadius: "50%" }} />
+                  ) : (
+                    <User size={18} color="#fff" />
+                  )}
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>
+                    {user.displayName || "Mi cuenta"}
+                  </span>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <div style={{ padding: "0.5rem 0.75rem", fontSize: 12, color: "rgba(255,255,255,0.72)", whiteSpace: "nowrap" }}>
+                    {user.displayName || user.email}
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => { /* navegar a perfil */ }}>Mi perfil</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { /* navegar a pedidos */ }}>Mis pedidos</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { /* navegar a ajustes */ }}>Ajustes</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => firebaseSignOut(auth)}>Cerrar sesión</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <button
+                onClick={signInWithGoogle}
+                title="Iniciar sesión"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  height: 40,
+                  padding: "0 10px",
+                  borderRadius: 999,
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  color: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                <User size={18} color="#fff" />
+                <span style={{ fontSize: 13, fontWeight: 700 }}>Iniciar sesión</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </nav>
