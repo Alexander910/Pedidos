@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { db } from '@envios-ya/firebase/src/client';
 import { useAuth } from '@envios-ya/firebase';
-import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc, query, where } from 'firebase/firestore';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -66,13 +66,15 @@ export default function ClientPortalHome() {
     if (loading || !user) return;
 
     setLoadingOrders(true);
-    const unsub = onSnapshot(collection(db, 'orders'), (snap) => {
+    
+    // Construct query with filters based on role to satisfy Firestore security rules
+    let q = query(collection(db, 'orders'));
+    if (activeRole !== 'super_admin' && activeRole !== 'admin') {
+      q = query(collection(db, 'orders'), where('clientId', '==', activeCompanyId));
+    }
+
+    const unsub = onSnapshot(q, (snap) => {
       let list = snap.docs.map(docSnap => ({ orderId: docSnap.id, ...docSnap.data() }));
-      
-      // If client or partner, filter by company
-      if (activeRole !== 'super_admin' && activeRole !== 'admin') {
-        list = list.filter((o: any) => o.clientId === activeCompanyId);
-      }
       
       // Sort locally by createdAt desc
       list.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());

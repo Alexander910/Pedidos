@@ -18,7 +18,7 @@ import {
 import Link from 'next/link';
 import { db } from '@envios-ya/firebase/src/client';
 import { useAuth } from '@envios-ya/firebase';
-import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc, query, where } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 
 // Define roles
@@ -77,30 +77,6 @@ export default function RbacDashboard() {
 
   const [activeTab, setActiveTab] = useState<'companies' | 'users' | 'orders'>('companies');
 
-  // Real-time subscriptions
-  useEffect(() => {
-    setLoading(true);
-
-    const unsubComp = onSnapshot(collection(db, 'companies'), (snap) => {
-      setCompanies(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-
-    const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
-      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-
-    const unsubOrders = onSnapshot(collection(db, 'orders'), (snap) => {
-      setOrders(snap.docs.map(d => ({ orderId: d.id, ...d.data() })));
-      setLoading(false);
-    });
-
-    return () => {
-      unsubComp();
-      unsubUsers();
-      unsubOrders();
-    };
-  }, []);
-
   const activeUser = profile || (user ? { name: user.displayName || user.email, email: user.email } : null);
   const activeRole = role || 'client';
   const activeCompanyId = profile?.companyId || '';
@@ -110,6 +86,43 @@ export default function RbacDashboard() {
                              activeCompanyId === 'envios_ya_corp' ? 'Envios-Ya Corp' : 
                              activeCompanyId === 'global' ? 'Acceso Global' :
                              activeCompanyId ? activeCompanyId : 'Sin Empresa';
+
+  // Real-time subscriptions for companies and users
+  useEffect(() => {
+    const unsubComp = onSnapshot(collection(db, 'companies'), (snap) => {
+      setCompanies(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
+      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    return () => {
+      unsubComp();
+      unsubUsers();
+    };
+  }, []);
+
+  // Real-time subscription for orders (reactive to activeRole and activeCompanyId)
+  useEffect(() => {
+    if (authLoading) return;
+
+    setLoading(true);
+    let qOrders = query(collection(db, 'orders'));
+    if (activeRole !== 'super_admin' && activeRole !== 'admin') {
+      qOrders = query(collection(db, 'orders'), where('clientId', '==', activeCompanyId));
+    }
+
+    const unsubOrders = onSnapshot(qOrders, (snap) => {
+      setOrders(snap.docs.map(d => ({ orderId: d.id, ...d.data() })));
+      setLoading(false);
+    }, (err) => {
+      console.error("Error subscribing to orders in RBAC:", err);
+      setLoading(false);
+    });
+
+    return () => unsubOrders();
+  }, [activeRole, activeCompanyId, authLoading]);
 
   const getFilteredOrders = () => {
     if (activeRole === 'super_admin' || activeRole === 'admin') {

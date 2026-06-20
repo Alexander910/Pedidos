@@ -6,7 +6,16 @@ service cloud.firestore {
       return request.auth != null;
     }
     function getUserRole() {
-      return request.auth.token.role;
+      return request.auth.token.role != null 
+        ? request.auth.token.role 
+        : (exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+            : null);
+    }
+    function getUserCompanyId() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId
+        : null;
     }
     function isOwner(uid) {
       return request.auth.uid == uid;
@@ -24,6 +33,12 @@ service cloud.firestore {
       allow write: if isSignedIn() && (isOwner(uid) || getUserRole() == 'admin' || getUserRole() == 'dispatcher');
     }
 
+    // Companies
+    match /companies/{companyId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (getUserRole() == 'admin' || getUserRole() == 'super_admin');
+    }
+
     // Clients profile metadata
     match /clients/{uid} {
       allow read: if isSignedIn();
@@ -36,6 +51,7 @@ service cloud.firestore {
         getUserRole() == 'admin' || 
         getUserRole() == 'dispatcher' || 
         resource.data.clientId == request.auth.uid || 
+        resource.data.clientId == getUserCompanyId() ||
         resource.data.driverId == request.auth.uid
       );
       // Create is allowed for clients and dispatchers
