@@ -7,101 +7,150 @@ import {
   CheckCircle2, 
   DollarSign, 
   LogOut, 
-  ToggleLeft,
-  ToggleRight,
-  Phone,
-  Package,
-  Star,
-  ThumbsDown,
-  Clock,
-  ArrowRight,
-  Loader2
+  ToggleLeft, 
+  ToggleRight, 
+  Phone, 
+  Package, 
+  Star, 
+  ThumbsDown, 
+  Clock, 
+  ArrowRight, 
+  Loader2,
+  Mail,
+  Lock as LockIcon,
+  Chrome,
+  AlertTriangle
 } from 'lucide-react';
-import { db } from '@envios-ya/firebase/src/client';
-import { collection, doc, onSnapshot, updateDoc, arrayUnion, query, where, getDocs, setDoc } from 'firebase/firestore';
-
-const seedDriversIfEmpty = async () => {
-  try {
-    const col = collection(db, 'drivers');
-    const snap = await getDocs(col);
-    if (snap.empty) {
-      console.log("Seeding mock pilots into Firestore...");
-      const mockDrivers = [
-        { name: 'Mario Ponce', vehicleType: 'motorcycle', status: 'idle', phone: '+502 4432 1122', rating: 4.8 },
-        { name: 'Luis García', vehicleType: 'motorcycle', status: 'idle', phone: '+502 5532 9988', rating: 4.9 },
-        { name: 'Carlos Morales', vehicleType: 'pickup', status: 'idle', phone: '+502 3311 0022', rating: 4.7 }
-      ];
-      for (let i = 0; i < mockDrivers.length; i++) {
-        await setDoc(doc(db, 'drivers', `driver-${i+1}`), mockDrivers[i]);
-      }
-      console.log("Mock pilots seeded successfully!");
-    }
-  } catch (e) {
-    console.warn("Could not seed pilots (verify Firebase config):", e);
-  }
-};
+import { auth, db } from '@envios-ya/firebase/src/client';
+import { useAuth } from '@envios-ya/firebase';
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signInWithPopup, 
+  GoogleAuthProvider 
+} from 'firebase/auth';
+import { 
+  collection, 
+  doc, 
+  onSnapshot, 
+  updateDoc, 
+  arrayUnion, 
+  query, 
+  where, 
+  getDocs, 
+  setDoc, 
+  getDoc 
+} from 'firebase/firestore';
 
 export default function PilotDashboard() {
-  const [activePilotId, setActivePilotId] = useState('driver-1'); // Default Mario Ponce
+  const { user, profile, role, loading: authLoading, logout } = useAuth();
+  
+  const activePilotId = user?.uid || '';
   const [pilot, setPilot] = useState<any | null>(null);
   const [activeOrder, setActiveOrder] = useState<any | null>(null);
   const [availableOrders, setAvailableOrders] = useState<any[]>([]);
   const [completedOrders, setCompletedOrders] = useState<any[]>([]);
   const [rejectedOrders, setRejectedOrders] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [pilotsList, setPilotsList] = useState<any[]>([]);
 
-  // Form states for new registration
-  const [newName, setNewName] = useState('');
-  const [newPhone, setNewPhone] = useState('');
-  const [newVehicle, setNewVehicle] = useState('motorcycle');
-  const [isRegistering, setIsRegistering] = useState(false);
+  // Form login states for inline login if unauthenticated
+  const [isRegister, setIsRegister] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  // 1. Fetch available pilots list to allow session switching
-  useEffect(() => {
-    seedDriversIfEmpty().then(() => {
-      getDocs(collection(db, 'drivers')).then(snap => {
-        setPilotsList(snap.docs.map(d => ({ uid: d.id, ...d.data() })));
-      });
-    });
-  }, []);
+  const handleFirebaseError = (err: any) => {
+    console.error("Auth error:", err);
+    if (err.code === 'auth/invalid-api-key' || err.message?.includes('API key')) {
+      return "Error de Configuración: Firebase no está configurado correctamente.";
+    }
+    if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+      return "Credenciales inválidas.";
+    }
+    if (err.code === 'auth/email-already-in-use') {
+      return "El correo electrónico ya está registrado.";
+    }
+    return err.message || "Ocurrió un error al procesar el inicio de sesión.";
+  };
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName.trim() || !newPhone.trim()) return;
-    setIsRegistering(true);
-    try {
-      const targetId = activePilotId === 'driver-1' && !pilotsList.some(p => p.uid === 'driver-1') 
-        ? 'driver-1' 
-        : `driver-${Date.now()}`;
-      
-      const newDriverData = {
-        name: newName,
-        phone: newPhone,
-        vehicleType: newVehicle,
-        status: 'idle',
-        rating: 5.0,
-        activeOrderId: null
-      };
+    if (!email.trim() || !password.trim()) return;
 
-      await setDoc(doc(db, 'drivers', targetId), newDriverData);
-      
-      // Update local lists
-      const snap = await getDocs(collection(db, 'drivers'));
-      setPilotsList(snap.docs.map(d => ({ uid: d.id, ...d.data() })));
-      
-      // Select the newly registered pilot
-      setActivePilotId(targetId);
-    } catch (err) {
-      console.error("Error registering pilot:", err);
-      alert("Error al registrar piloto. Verifica tu conexión.");
+    setLoginLoading(true);
+    setErrorMessage('');
+    try {
+      if (isRegister) {
+        await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+    } catch (err: any) {
+      setErrorMessage(handleFirebaseError(err));
     } finally {
-      setIsRegistering(false);
+      setLoginLoading(false);
     }
   };
 
+  const handleGoogleAuth = async () => {
+    setLoginLoading(true);
+    setErrorMessage('');
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (err: any) {
+      setErrorMessage(handleFirebaseError(err));
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  // 1. Auto-create/verify pilot profile doc when logged in
+  useEffect(() => {
+    if (authLoading || !user) return;
+    
+    const driverRef = doc(db, 'drivers', user.uid);
+    getDoc(driverRef).then(async (snap) => {
+      if (!snap.exists()) {
+        console.log("Creating new driver profile in Firestore for", user.displayName || user.email);
+        await setDoc(driverRef, {
+          name: user.displayName || name || user.email?.split('@')[0] || 'Nuevo Piloto',
+          phone: phone || '+502 0000 0000',
+          vehicleType: 'motorcycle',
+          status: 'idle',
+          rating: 5.0,
+          activeOrderId: null,
+          createdAt: new Date().toISOString()
+        });
+        
+        // Also register in users collection to keep roles synced
+        const userRef = doc(db, 'users', user.uid);
+        const userSnap = await getDoc(userRef);
+        if (!userSnap.exists()) {
+          await setDoc(userRef, {
+            name: user.displayName || name || user.email?.split('@')[0],
+            email: user.email || '',
+            role: 'pilot',
+            createdAt: new Date().toISOString()
+          });
+        }
+      }
+    }).catch(err => {
+      console.error("Error verifying/creating driver profile:", err);
+    });
+  }, [user, authLoading]);
+
   // 2. Real-time subscription to active pilot profile
   useEffect(() => {
+    if (!activePilotId) {
+      setPilot(null);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     const unsub = onSnapshot(doc(db, 'drivers', activePilotId), (snap) => {
       if (snap.exists()) {
@@ -155,6 +204,8 @@ export default function PilotDashboard() {
 
   // 5. Real-time subscription to completed orders history
   useEffect(() => {
+    if (!activePilotId) return;
+
     const q = query(
       collection(db, 'orders'), 
       where('driverId', '==', activePilotId), 
@@ -246,89 +297,140 @@ export default function PilotDashboard() {
     }
   };
 
-  if (loading) {
+  if (authLoading || (user && loading)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-slate-100">
         <Loader2 className="w-8 h-8 text-orange-500 animate-spin mb-4" />
-        <p className="text-sm font-semibold text-slate-400">Cargando perfil del piloto...</p>
+        <p className="text-sm font-semibold text-slate-400">Verificando piloto...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex flex-col h-screen max-w-md mx-auto bg-slate-950 text-slate-100 border-x border-slate-800 p-6 justify-center">
+        <div className="space-y-6">
+          <div className="text-center space-y-2">
+            <span className="text-orange-500 font-extrabold text-3xl tracking-tight block">ENVIOS-YA</span>
+            <h2 className="text-xl font-bold text-white">Consola de Repartidores</h2>
+            <p className="text-xs text-slate-400">
+              Inicia sesión para recibir alertas de viajes en Antigua Guatemala.
+            </p>
+          </div>
+
+          <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-800">
+            <button
+              onClick={() => { setIsRegister(false); setErrorMessage(''); }}
+              className={`flex-1 py-1.5 text-xs font-bold rounded transition-all ${!isRegister ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              Iniciar Sesión
+            </button>
+            <button
+              onClick={() => { setIsRegister(true); setErrorMessage(''); }}
+              className={`flex-1 py-1.5 text-xs font-bold rounded transition-all ${isRegister ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              Registrarse
+            </button>
+          </div>
+
+          {errorMessage && (
+            <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-xl flex gap-2 items-start leading-relaxed">
+              <AlertTriangle className="shrink-0 mt-0.5" size={14} />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleEmailAuth} className="space-y-3">
+            {isRegister && (
+              <>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nombre Completo</label>
+                  <input
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Ej. Juan Pérez"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-650 focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Teléfono</label>
+                  <input
+                    type="tel"
+                    required
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="Ej. +502 5555 1234"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-650 focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+              </>
+            )}
+
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Correo Electrónico</label>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-3 text-slate-500" size={14} />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="piloto@envios-ya.com"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white placeholder-slate-650 focus:outline-none focus:border-orange-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Contraseña</label>
+              <div className="relative">
+                <LockIcon className="absolute left-3.5 top-3 text-slate-500" size={14} />
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white placeholder-slate-650 focus:outline-none focus:border-orange-500"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loginLoading}
+              className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs transition-all shadow-md disabled:opacity-50"
+            >
+              {loginLoading ? <Loader2 className="animate-spin" size={14} /> : (isRegister ? 'Registrarse como Piloto' : 'Iniciar Sesión')}
+            </button>
+          </form>
+
+          <div className="flex items-center gap-3 text-slate-800 text-[9px] font-bold uppercase tracking-wider">
+            <div className="h-px bg-slate-900 flex-1" />
+            <span>O</span>
+            <div className="h-px bg-slate-900 flex-1" />
+          </div>
+
+          <button
+            onClick={handleGoogleAuth}
+            disabled={loginLoading}
+            className="w-full py-2.5 bg-slate-900 hover:bg-slate-855 border border-slate-800 text-slate-200 hover:text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 transition-all"
+          >
+            <Chrome size={14} className="text-orange-500" />
+            Ingresar con Google
+          </button>
+        </div>
       </div>
     );
   }
 
   if (!pilot) {
     return (
-      <div className="flex flex-col h-screen max-w-md mx-auto bg-slate-950 text-slate-100 border-x border-slate-800 p-6 justify-center">
-        <div className="space-y-6">
-          <div className="text-center space-y-2">
-            <span className="text-orange-500 font-extrabold text-3xl tracking-tight block">ENVIOS-YA</span>
-            <h2 className="text-xl font-bold text-white">Registro de Nuevo Piloto</h2>
-            <p className="text-xs text-slate-400">
-              Parece que es tu primera vez aquí o el perfil seleccionado no existe. Completa los datos para darte de alta.
-            </p>
-          </div>
-
-          <form onSubmit={handleRegister} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Nombre Completo</label>
-              <input
-                type="text"
-                required
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Ej. Juan Pérez"
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Teléfono</label>
-              <input
-                type="tel"
-                required
-                value={newPhone}
-                onChange={(e) => setNewPhone(e.target.value)}
-                placeholder="Ej. +502 5555 1234"
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Tipo de Vehículo</label>
-              <select
-                value={newVehicle}
-                onChange={(e) => setNewVehicle(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500"
-              >
-                <option value="motorcycle">Moto Express</option>
-                <option value="pickup">Camioneta / Pickup</option>
-              </select>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isRegistering}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-extrabold text-sm transition-all shadow-lg shadow-orange-600/20 disabled:opacity-50"
-            >
-              {isRegistering ? 'Registrando...' : 'Registrar y Activar'}
-            </button>
-          </form>
-
-          {pilotsList.length > 0 && (
-            <div className="pt-6 border-t border-slate-900 text-center space-y-3">
-              <p className="text-[11px] text-slate-500">¿Ya tienes un piloto creado? Selecciónalo abajo:</p>
-              <select
-                value={activePilotId}
-                onChange={(e) => setActivePilotId(e.target.value)}
-                className="bg-slate-900 text-xs font-bold text-white px-3 py-2 rounded-xl border border-slate-800 focus:outline-none mx-auto block"
-              >
-                <option value="" disabled>Seleccionar piloto...</option>
-                {pilotsList.map(p => (
-                  <option key={p.uid} value={p.uid}>{p.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
+      <div className="flex flex-col h-screen max-w-md mx-auto bg-slate-950 text-slate-100 border-x border-slate-800 p-6 justify-center text-center">
+        <Loader2 className="w-8 h-8 text-orange-500 animate-spin mb-4 mx-auto" />
+        <p className="text-sm font-semibold">Cargando perfil de piloto...</p>
       </div>
     );
   }
@@ -354,17 +456,6 @@ export default function PilotDashboard() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Active Pilot Switcher */}
-          <select 
-            value={activePilotId}
-            onChange={(e) => setActivePilotId(e.target.value)}
-            className="bg-slate-800 text-xs font-bold text-white px-2 py-1 rounded border border-slate-700 focus:outline-none"
-          >
-            {pilotsList.map(p => (
-              <option key={p.uid} value={p.uid}>{p.name.split(' ')[0]}</option>
-            ))}
-          </select>
-
           {pilot.status === 'offline' ? (
             <div className="flex items-center gap-1 bg-red-500/10 text-red-500 px-2 py-0.5 rounded-full text-[10px] font-bold">
               Offline
@@ -374,6 +465,13 @@ export default function PilotDashboard() {
               Online
             </div>
           )}
+
+          <button 
+            onClick={() => logout()}
+            className="p-1 bg-red-500/10 hover:bg-red-500/25 border border-red-500/20 text-red-400 hover:text-red-300 rounded font-bold text-[10px] px-2 py-1 transition-all"
+          >
+            Salir
+          </button>
         </div>
       </header>
 

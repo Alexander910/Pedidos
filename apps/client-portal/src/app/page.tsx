@@ -30,36 +30,24 @@ export default function ClientPortalHome() {
   const [drivers, setDrivers] = useState<Record<string, any>>({});
   const [loadingOrders, setLoadingOrders] = useState(true);
 
-  // Simulated session states
-  const [simulatedUser, setSimulatedUser] = useState<any>(null);
-  const [authInitialized, setAuthInitialized] = useState(false);
-
+  // Redirect if no real session is present
   useEffect(() => {
-    const sim = localStorage.getItem('envios_ya_sim_user');
-    if (sim) {
-      setSimulatedUser(JSON.parse(sim));
-    }
-    setAuthInitialized(true);
-  }, []);
+    if (loading) return;
 
-  useEffect(() => {
-    if (!authInitialized || loading) return;
-
-    // If no real session and no simulated session, redirect to login
-    if (!user && !simulatedUser) {
+    if (!user) {
       router.push('/login');
     }
-  }, [user, simulatedUser, loading, authInitialized, router]);
+  }, [user, loading, router]);
 
-  const activeUser = profile || simulatedUser || (user ? { name: user.displayName || user.email, email: user.email } : null);
-  const activeCompanyId = profile?.companyId || simulatedUser?.companyId || (user ? 'hotel_santo_domingo' : '');
-  const activeRole = role || simulatedUser?.role || 'client';
+  const activeUser = profile || (user ? { name: user.displayName || user.email, email: user.email } : null);
+  const activeCompanyId = profile?.companyId || '';
+  const activeRole = role || 'client';
 
   const activeCompanyName = activeCompanyId === 'hotel_santo_domingo' ? 'Casa Santo Domingo' :
                              activeCompanyId === 'restaurante_antigua' ? 'Restaurante Antigua' :
                              activeCompanyId === 'envios_ya_corp' ? 'Envios-Ya Corp' : 
                              activeCompanyId === 'global' ? 'Acceso Global' :
-                             activeCompanyId || 'Socio Comercial';
+                             activeCompanyId ? activeCompanyId : 'Sin Empresa (Asociar en RBAC)';
 
   // 1. Subscribe to drivers to translate driverId to driver name in real-time
   useEffect(() => {
@@ -75,8 +63,7 @@ export default function ClientPortalHome() {
 
   // 2. Subscribe to orders created by activeCompanyId
   useEffect(() => {
-    if (!authInitialized || loading) return;
-    if (!user && !simulatedUser) return;
+    if (loading || !user) return;
 
     setLoadingOrders(true);
     const unsub = onSnapshot(collection(db, 'orders'), (snap) => {
@@ -97,7 +84,7 @@ export default function ClientPortalHome() {
       setLoadingOrders(false);
     });
     return () => unsub();
-  }, [activeCompanyId, activeRole, authInitialized, loading, user, simulatedUser]);
+  }, [activeCompanyId, activeRole, loading, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -192,7 +179,7 @@ export default function ClientPortalHome() {
   const activeOrders = orders.filter(o => o.status !== 'delivered');
   const pastOrders = orders.filter(o => o.status === 'delivered');
 
-  if (!authInitialized || loading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-3">
         <Loader2 className="animate-spin text-orange-500" size={32} />

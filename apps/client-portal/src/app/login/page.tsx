@@ -9,7 +9,8 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signInWithPopup, 
-  GoogleAuthProvider 
+  GoogleAuthProvider,
+  onAuthStateChanged
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { 
@@ -35,13 +36,14 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Sincronizar si ya está logueado o si hay un usuario simulado
+  // Redirigir al home si ya está logueado con Firebase
   useEffect(() => {
-    // Si ya existe sesión simulada o real en localStorage/auth, podemos sugerir ir al home.
-    const simUser = localStorage.getItem('envios_ya_sim_user');
-    if (simUser) {
-      router.push('/');
-    }
+    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        router.push('/');
+      }
+    });
+    return () => unsub();
   }, [router]);
 
   const handleFirebaseError = (err: any) => {
@@ -139,32 +141,6 @@ export default function LoginPage() {
     }
   };
 
-  // Mock roles for Simulation Mode
-  const demoUsers = [
-    { id: 'client-1', name: 'Huésped Casa Santo Domingo', role: 'client', companyId: 'hotel_santo_domingo', desc: 'Cliente corporativo' },
-    { id: 'super-1', name: 'Aldo SuperAdmin', role: 'super_admin', companyId: 'global', desc: 'Control total de la plataforma' },
-    { id: 'admin-1', name: 'Carlos Dispatcher', role: 'admin', companyId: 'envios_ya_corp', desc: 'Coordinador de envíos' },
-    { id: 'partner-1', name: 'Gerente La Merced', role: 'partner', companyId: 'restaurante_antigua', desc: 'Socio comercial' },
-    { id: 'pilot-1', name: 'Mario Ponce', role: 'pilot', companyId: 'pilot-fleet', desc: 'Conductor express' }
-  ];
-
-  const handleDemoLogin = (user: typeof demoUsers[0]) => {
-    setLoading(true);
-    // Guardamos la sesión simulada en localStorage
-    localStorage.setItem('envios_ya_sim_user', JSON.stringify({
-      id: user.id,
-      name: user.name,
-      role: user.role,
-      companyId: user.companyId
-    }));
-    // Deslogueamos Firebase real para que no colisionen
-    auth.signOut().catch(() => {});
-    
-    setTimeout(() => {
-      setLoading(false);
-      router.push('/');
-    }, 600);
-  };
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center px-4 relative overflow-hidden antialiased">
@@ -296,39 +272,6 @@ export default function LoginPage() {
           </button>
         </div>
 
-        {/* Simulation / Demo Box */}
-        <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-5 space-y-3.5">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Entrada Rápida (Modo Simulación)</h3>
-          </div>
-          
-          <p className="text-[11px] text-slate-500 leading-relaxed">
-            Haga clic en cualquiera de estos perfiles precargados para omitir Firebase Auth e iniciar de forma inmediata en modo desarrollo.
-          </p>
-
-          <div className="grid grid-cols-1 gap-2 pt-1">
-            {demoUsers.map(u => (
-              <button
-                key={u.id}
-                onClick={() => handleDemoLogin(u)}
-                disabled={loading}
-                className="flex items-center justify-between p-2.5 bg-slate-950 hover:bg-slate-900 border border-slate-850/80 hover:border-slate-800 rounded-xl transition-all group text-left"
-              >
-                <div>
-                  <span className="text-xs font-bold text-slate-200 group-hover:text-orange-500 transition-colors block">{u.name}</span>
-                  <span className="text-[10px] text-slate-500 mt-0.5 block">{u.desc}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="px-2 py-0.5 bg-slate-900 rounded text-[9px] font-mono text-slate-400 border border-slate-800">
-                    {u.role}
-                  </span>
-                  <Play size={10} className="text-slate-600 group-hover:text-orange-500 transition-colors" />
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
 
       </div>
     </div>

@@ -17,10 +17,12 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { db } from '@envios-ya/firebase/src/client';
+import { useAuth } from '@envios-ya/firebase';
 import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { useRouter } from 'next/navigation';
 
 // Define roles
-type UserRole = 'super_admin' | 'admin' | 'pilot' | 'client' | 'partner';
+import { UserRole } from '@envios-ya/shared';
 
 interface PermissionItem {
   id: string;
@@ -41,17 +43,16 @@ const PERMISSIONS: PermissionItem[] = [
 ];
 
 export default function RbacDashboard() {
-  const [selectedRole, setSelectedRole] = useState<UserRole>('super_admin');
-  const [simulatedUserId, setSimulatedUserId] = useState('super-1');
+  const router = useRouter();
+  const { user, profile, role, loading: authLoading } = useAuth();
 
+  // Redirect if no real session
   useEffect(() => {
-    const sim = localStorage.getItem('envios_ya_sim_user');
-    if (sim) {
-      const parsed = JSON.parse(sim);
-      setSimulatedUserId(parsed.id);
-      setSelectedRole(parsed.role as UserRole);
+    if (authLoading) return;
+    if (!user) {
+      router.push('/login');
     }
-  }, []);
+  }, [user, authLoading, router]);
 
   // Firestore states
   const [companies, setCompanies] = useState<any[]>([]);
@@ -100,28 +101,26 @@ export default function RbacDashboard() {
     };
   }, []);
 
-  // Filter orders based on the selected simulated user's role and company
-  const getCurrentUserCompanyId = () => {
-    if (selectedRole === 'super_admin') return 'global';
-    if (selectedRole === 'pilot') return 'pilot-fleet';
-    
-    // Lookup selected user from list
-    const foundUser = users.find(u => u.id === simulatedUserId);
-    return foundUser?.companyId || 'hotel_santo_domingo';
-  };
+  const activeUser = profile || (user ? { name: user.displayName || user.email, email: user.email } : null);
+  const activeRole = role || 'client';
+  const activeCompanyId = profile?.companyId || '';
 
-  const currentCompanyId = getCurrentUserCompanyId();
+  const activeCompanyName = activeCompanyId === 'hotel_santo_domingo' ? 'Casa Santo Domingo' :
+                             activeCompanyId === 'restaurante_antigua' ? 'Restaurante Antigua' :
+                             activeCompanyId === 'envios_ya_corp' ? 'Envios-Ya Corp' : 
+                             activeCompanyId === 'global' ? 'Acceso Global' :
+                             activeCompanyId ? activeCompanyId : 'Sin Empresa';
 
   const getFilteredOrders = () => {
-    if (selectedRole === 'super_admin' || selectedRole === 'admin') {
+    if (activeRole === 'super_admin' || activeRole === 'admin') {
       return orders; // Admins see everything
     }
-    if (selectedRole === 'pilot') {
+    if (activeRole === 'pilot') {
       // Pilots see orders they accepted or that are pending
-      return orders.filter(o => o.status === 'pending' || o.driverId === simulatedUserId);
+      return orders.filter(o => o.status === 'pending' || o.driverId === user?.uid);
     }
     // Clients/Partners see only their company's orders
-    return orders.filter(o => o.clientId === currentCompanyId);
+    return orders.filter(o => o.clientId === activeCompanyId);
   };
 
   const filteredOrdersList = getFilteredOrders();
@@ -190,6 +189,8 @@ export default function RbacDashboard() {
     switch (role) {
       case 'super_admin': return 'bg-purple-500/10 text-purple-400 border border-purple-500/30';
       case 'admin': return 'bg-blue-500/10 text-blue-400 border border-blue-500/30';
+      case 'dispatcher': return 'bg-blue-500/10 text-blue-400 border border-blue-500/30';
+      case 'driver': return 'bg-orange-500/10 text-orange-400 border border-orange-500/30';
       case 'pilot': return 'bg-orange-500/10 text-orange-400 border border-orange-500/30';
       case 'client': return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
       case 'partner': return 'bg-pink-500/10 text-pink-400 border border-pink-500/30';
@@ -200,28 +201,22 @@ export default function RbacDashboard() {
     switch (role) {
       case 'super_admin': return 'Super Admin';
       case 'admin': return 'Admin (Coordinador)';
+      case 'dispatcher': return 'Admin (Coordinador)';
+      case 'driver': return 'Piloto (Conductor)';
       case 'pilot': return 'Piloto (Conductor)';
       case 'client': return 'Cliente (Hotel/Airbnb)';
       case 'partner': return 'Socio (Restaurante)';
     }
   };
 
-  // Mock list of users for switching context if db users empty
-  const defaultSimUsers: { id: string; name: string; role: UserRole; companyId: string }[] = [
-    { id: 'super-1', name: 'Aldo SuperAdmin', role: 'super_admin', companyId: 'global' },
-    { id: 'admin-1', name: 'Carlos Dispatcher', role: 'admin', companyId: 'envios_ya_corp' },
-    { id: 'pilot-1', name: 'Mario Ponce', role: 'pilot', companyId: 'pilot-fleet' },
-    { id: 'client-1', name: 'Huésped Casa Santo Domingo', role: 'client', companyId: 'hotel_santo_domingo' },
-    { id: 'partner-1', name: 'Gerente La Merced', role: 'partner', companyId: 'restaurante_antigua' }
-  ];
-
-  // Merge database users with mock users for role switching dropdown
-  const allSwitchableUsers = [
-    ...defaultSimUsers,
-    ...users.map(u => ({ id: u.id, name: u.name, role: u.role as UserRole, companyId: u.companyId }))
-  ];
-
-  const currentSimUser = allSwitchableUsers.find(u => u.id === simulatedUserId) || defaultSimUsers[0];
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-3">
+        <Loader2 className="animate-spin text-orange-500" size={32} />
+        <p className="text-xs text-slate-400">Verificando acceso...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col antialiased">
@@ -241,31 +236,10 @@ export default function RbacDashboard() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2.5 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5">
               <Shield size={16} className="text-orange-500" />
-              <label className="text-[10px] font-bold text-slate-400 uppercase">Simular Usuario:</label>
-              <select
-                value={simulatedUserId}
-                onChange={(e) => {
-                  const targetId = e.target.value;
-                  const found = allSwitchableUsers.find(u => u.id === targetId);
-                  if (found) {
-                    setSimulatedUserId(targetId);
-                    setSelectedRole(found.role as UserRole);
-                    localStorage.setItem('envios_ya_sim_user', JSON.stringify({
-                      id: found.id,
-                      name: found.name,
-                      role: found.role,
-                      companyId: found.companyId
-                    }));
-                  }
-                }}
-                className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer"
-              >
-                {allSwitchableUsers.map(u => (
-                  <option key={u.id} value={u.id} className="bg-slate-900 text-white">
-                    {u.name} ({getRoleLabel(u.role)})
-                  </option>
-                ))}
-              </select>
+              <span className="text-xs font-bold text-white">Sesión: {activeUser?.name}</span>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${getRoleBadgeColor(activeRole)}`}>
+                {getRoleLabel(activeRole)}
+              </span>
             </div>
           </div>
         </div>
@@ -276,30 +250,30 @@ export default function RbacDashboard() {
         
         {/* Left Column: Permission Matrix & Role selector info */}
         <div className="space-y-8 lg:col-span-1">
-          {/* Active Sim User Profile */}
+          {/* Active User Profile */}
           <div className="p-6 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
             <div className="flex justify-between items-start">
               <div>
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Sesión Simulada</span>
-                <h3 className="text-lg font-bold text-white mt-1">{currentSimUser.name}</h3>
-                <p className="text-xs text-slate-400 font-mono mt-0.5">ID: {currentSimUser.id}</p>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Sesión Activa</span>
+                <h3 className="text-lg font-bold text-white mt-1">{activeUser?.name}</h3>
+                <p className="text-xs text-slate-400 font-mono mt-0.5">UID: {user?.uid}</p>
               </div>
-              <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getRoleBadgeColor(selectedRole)}`}>
-                {getRoleLabel(selectedRole)}
+              <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getRoleBadgeColor(activeRole)}`}>
+                {getRoleLabel(activeRole)}
               </span>
             </div>
 
             <div className="pt-4 border-t border-slate-800/60 space-y-2.5 text-xs text-slate-300">
               <div className="flex justify-between">
                 <span className="text-slate-500">Asociación (Empresa ID):</span>
-                <span className="font-semibold text-slate-200 font-mono">{currentSimUser.companyId || 'N/A (Acceso Global)'}</span>
+                <span className="font-semibold text-slate-200 font-mono">{activeCompanyId || 'Ninguna (Asociar en DB)'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Nivel de Restricción DB:</span>
                 <span className="font-semibold text-slate-200">
-                  {selectedRole === 'super_admin' ? 'Total (Todo el sistema)' :
-                   selectedRole === 'admin' ? 'Coordinador (Todo el sistema)' :
-                   selectedRole === 'pilot' ? 'Operador (Pendientes y propias)' : 'Filtrado por Empresa'}
+                  {activeRole === 'super_admin' ? 'Total (Todo el sistema)' :
+                   activeRole === 'admin' ? 'Coordinador (Todo el sistema)' :
+                   activeRole === 'pilot' ? 'Operador (Pendientes y propias)' : 'Filtrado por Empresa'}
                 </span>
               </div>
             </div>
@@ -317,7 +291,7 @@ export default function RbacDashboard() {
 
             <div className="space-y-3.5 pt-2">
               {PERMISSIONS.map(p => {
-                const isAllowed = p.roles.includes(selectedRole);
+                const isAllowed = p.roles.includes(activeRole);
                 return (
                   <div key={p.id} className="flex gap-3 items-start p-2 rounded-lg bg-slate-950/40 border border-slate-800/40">
                     <div className="mt-0.5">
@@ -346,10 +320,10 @@ export default function RbacDashboard() {
         <div className="lg:col-span-2 space-y-8">
           
           {/* Admin Forms for coordination (Only visible for Super Admin and Admin) */}
-          {(selectedRole === 'super_admin' || selectedRole === 'admin') && (
+          {(activeRole === 'super_admin' || activeRole === 'admin') && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Form 1: Register Company (Super Admin only) */}
-              {selectedRole === 'super_admin' ? (
+              {activeRole === 'super_admin' ? (
                 <section className="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
                     <Building size={16} className="text-orange-500" />
@@ -640,10 +614,10 @@ export default function RbacDashboard() {
                     <div className="space-y-4">
                       <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl flex items-center justify-between">
                         <p className="text-[11px] text-slate-400">
-                          Pedidos expuestos por Firestore para el rol actual: <strong className="text-orange-500">{getRoleLabel(selectedRole)}</strong>
+                          Pedidos expuestos por Firestore para el rol actual: <strong className="text-orange-500">{getRoleLabel(activeRole)}</strong>
                         </p>
                         <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 font-bold text-slate-400 border border-slate-700">
-                          {selectedRole === 'super_admin' || selectedRole === 'admin' ? 'Ver todo' : 'Filtrado'}
+                          {activeRole === 'super_admin' || activeRole === 'admin' ? 'Ver todo' : 'Filtrado'}
                         </span>
                       </div>
 
