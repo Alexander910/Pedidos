@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'dispatcher' | 'driver' | 'client';
+export type UserRole = 'super_admin' | 'admin' | 'dispatcher' | 'driver' | 'client' | 'partner' | 'pilot';
 export type UserStatus = 'active' | 'inactive';
 
 export interface UserProfile {
@@ -8,9 +8,11 @@ export interface UserProfile {
   phone: string;
   role: UserRole;
   status: UserStatus;
+  companyId?: string; // Associated company
   createdAt: Date | any;
   updatedAt: Date | any;
 }
+
 
 export type VehicleType = 'motorcycle' | 'car' | 'pickup';
 export type DriverStatus = 'offline' | 'idle' | 'busy';
@@ -127,3 +129,14 @@ export interface LedgerTransaction {
   performedBy: string;
   timestamp: Date | any;
 }
+
+export interface Company {
+  companyId: string;
+  name: string;
+  nit: string;
+  address: string;
+  billingEmail: string;
+  pricingTier: 'standard' | 'premium_partner';
+  createdAt: string;
+}
+

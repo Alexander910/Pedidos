@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { db } from '@envios-ya/firebase/src/client';
 import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore';
+import Link from 'next/link';
 
 export default function ClientPortalHome() {
   const [originAddress, setOriginAddress] = useState('');
@@ -151,6 +152,9 @@ export default function ClientPortalHome() {
           <div className="flex items-center gap-3">
             <span className="text-xl font-bold text-primary">ENVIOS-YA</span>
             <span className="text-xs px-2 py-0.5 rounded bg-secondary text-muted-foreground">Portal Clientes</span>
+            <Link href="/rbac" className="text-xs font-bold text-orange-500 hover:text-orange-400 border border-orange-500/20 bg-orange-500/5 px-2.5 py-0.5 rounded-full transition-all">
+              Gestionar Roles (RBAC) y Empresas
+            </Link>
           </div>
           <div className="flex items-center gap-4">
             <button className="relative p-2 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
