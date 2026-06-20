@@ -2,6 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: [
+    "@envios-ya/firebase",
     "@envios-ya/shared",
     "@envios-ya/ui"
   ],
