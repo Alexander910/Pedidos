@@ -9,13 +9,13 @@ service cloud.firestore {
       return request.auth.token.role != null 
         ? request.auth.token.role 
         : (exists(/databases/$(database)/documents/users/$(request.auth.uid))
-            ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
-            : null);
+            ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'client')
+            : 'client');
     }
     function getUserCompanyId() {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId
-        : null;
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('companyId', '')
+        : '';
     }
     function isOwner(uid) {
       return request.auth.uid == uid;
@@ -24,7 +24,9 @@ service cloud.firestore {
     // Profiles
     match /users/{uid} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && (isOwner(uid) || getUserRole() == 'admin');
+      allow create: if isSignedIn() && isOwner(uid);
+      allow update: if isSignedIn() && (isOwner(uid) || getUserRole() == 'admin');
+      allow delete: if isSignedIn() && getUserRole() == 'admin';
     }
 
     // Drivers GPS and statistics
