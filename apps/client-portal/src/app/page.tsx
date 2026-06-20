@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Plus, 
   Clock, 
@@ -8,10 +8,141 @@ import {
   CheckCircle2, 
   CreditCard,
   Building,
-  Bell
+  Bell,
+  Loader2
 } from 'lucide-react';
+import { db } from '@envios-ya/firebase/src/client';
+import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore';
 
 export default function ClientPortalHome() {
+  const [originAddress, setOriginAddress] = useState('');
+  const [destinationAddress, setDestinationAddress] = useState('');
+  const [cargoDescription, setCargoDescription] = useState('');
+  const [codAmount, setCodAmount] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<Record<string, any>>({});
+  const [loadingOrders, setLoadingOrders] = useState(true);
+
+  // 1. Subscribe to drivers to translate driverId to driver name in real-time
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'drivers'), (snap) => {
+      const dMap: Record<string, any> = {};
+      snap.forEach(docSnap => {
+        dMap[docSnap.id] = docSnap.data();
+      });
+      setDrivers(dMap);
+    });
+    return () => unsub();
+  }, []);
+
+  // 2. Subscribe to orders created by hotel_santo_domingo
+  useEffect(() => {
+    setLoadingOrders(true);
+    const unsub = onSnapshot(collection(db, 'orders'), (snap) => {
+      const list = snap.docs
+        .map(docSnap => ({ orderId: docSnap.id, ...docSnap.data() }))
+        .filter((o: any) => o.clientId === 'hotel_santo_domingo');
+      
+      // Sort locally by createdAt desc
+      list.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      
+      setOrders(list);
+      setLoadingOrders(false);
+    }, (err) => {
+      console.error("Error subscribing to client orders:", err);
+      setLoadingOrders(false);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!originAddress.trim() || !destinationAddress.trim() || !cargoDescription.trim()) {
+      alert("Por favor completa los campos requeridos.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const orderId = `ORD-${Math.floor(100000 + Math.random() * 900000)}`;
+      const deliveryCost = 15.00; // standard delivery cost in GTQ
+
+      const newOrder = {
+        orderId,
+        clientId: "hotel_santo_domingo",
+        driverId: null,
+        status: "pending",
+        origin: {
+          address: originAddress,
+          latitude: 14.5573,
+          longitude: -90.7332,
+        },
+        destination: {
+          address: destinationAddress,
+          latitude: 14.56 + (Math.random() - 0.5) * 0.02,
+          longitude: -90.73 + (Math.random() - 0.5) * 0.02,
+        },
+        cargo: {
+          description: cargoDescription,
+          instructions: "Entregar en puerta o recepción"
+        },
+        payment: {
+          method: "cash_on_delivery",
+          codAmount: Number(codAmount) || 0,
+          deliveryPrice: deliveryCost,
+          driverCommission: deliveryCost * 0.8, // 80% commission
+          currency: "GTQ",
+        },
+        timeline: [
+          {
+            status: "pending",
+            timestamp: new Date().toISOString(),
+            userId: "hotel_santo_domingo",
+          },
+        ],
+        createdAt: new Date().toISOString(),
+      };
+
+      await setDoc(doc(db, "orders", orderId), newOrder);
+
+      // Clear form fields
+      setOriginAddress('');
+      setDestinationAddress('');
+      setCargoDescription('');
+      setCodAmount('');
+
+      alert(`Solicitud de envío ${orderId} creada con éxito.`);
+    } catch (error) {
+      console.error("Error creating order:", error);
+      alert("Hubo un error al crear la solicitud. Por favor intenta de nuevo.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'pending': return 'Buscando Piloto';
+      case 'assigned': return 'Piloto Asignado';
+      case 'picking_up': return 'Recolección';
+      case 'arrived_origin': return 'Llegó a Origen';
+      case 'in_transit': return 'En Ruta';
+      case 'arrived_destination': return 'En Destino';
+      case 'delivered': return 'Entregado';
+      default: return status;
+    }
+  };
+
+  const getETA = (status: string) => {
+    if (status === 'pending') return 'Buscando...';
+    if (status === 'delivered') return 'Entregado';
+    return '15-20 min';
+  };
+
+  const activeOrders = orders.filter(o => o.status !== 'delivered');
+  const pastOrders = orders.filter(o => o.status === 'delivered');
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Top Navigation */}
@@ -24,7 +155,9 @@ export default function ClientPortalHome() {
           <div className="flex items-center gap-4">
             <button className="relative p-2 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
               <Bell size={18} />
-              <div className="w-2 h-2 rounded-full bg-primary absolute top-1.5 right-1.5" />
+              {activeOrders.length > 0 && (
+                <div className="w-2 h-2 rounded-full bg-primary absolute top-1.5 right-1.5" />
+              )}
             </button>
             <div className="h-8 w-px bg-border" />
             <div className="flex items-center gap-3">
@@ -49,10 +182,10 @@ export default function ClientPortalHome() {
           <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
             <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
               <Plus size={20} className="text-primary" />
-              Solicitar Nuevo Envío
+              Solicitar Nuevo Envío / Mandado
             </h2>
             
-            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+            <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Dirección de Origen</label>
@@ -60,7 +193,10 @@ export default function ClientPortalHome() {
                     <MapPin size={16} className="absolute left-3 top-3 text-muted-foreground" />
                     <input 
                       type="text" 
+                      required
                       placeholder="Calle del Arco #4, Antigua Guatemala" 
+                      value={originAddress}
+                      onChange={(e) => setOriginAddress(e.target.value)}
                       className="w-full bg-background border border-border rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
@@ -71,7 +207,10 @@ export default function ClientPortalHome() {
                     <MapPin size={16} className="absolute left-3 top-3 text-muted-foreground" />
                     <input 
                       type="text" 
+                      required
                       placeholder="Apartamento 3B, Airbnb Casa Santo Domingo" 
+                      value={destinationAddress}
+                      onChange={(e) => setDestinationAddress(e.target.value)}
                       className="w-full bg-background border border-border rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
@@ -80,20 +219,25 @@ export default function ClientPortalHome() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5 md:col-span-2">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Detalles del Paquete</label>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Detalles del Paquete o Mandado</label>
                   <input 
                     type="text" 
+                    required
                     placeholder="Ej. Desayuno típico, llaves, documentos..." 
+                    value={cargoDescription}
+                    onChange={(e) => setCargoDescription(e.target.value)}
                     className="w-full bg-background border border-border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cobrar en Destino (COD)</label>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Monto a Cobrar (COD)</label>
                   <div className="relative">
                     <span className="absolute left-3 top-2 text-sm text-muted-foreground font-semibold">Q</span>
                     <input 
                       type="number" 
                       placeholder="0.00" 
+                      value={codAmount}
+                      onChange={(e) => setCodAmount(e.target.value)}
                       className="w-full bg-background border border-border rounded-lg pl-8 pr-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
@@ -104,7 +248,12 @@ export default function ClientPortalHome() {
                 <div className="text-xs text-muted-foreground">
                   Descuento corporate de <span className="text-emerald-500 font-bold">15%</span> aplicado automáticamente.
                 </div>
-                <button className="px-6 py-2 bg-primary text-primary-foreground font-bold rounded-lg hover:bg-primary/95 transition-all shadow-md text-sm">
+                <button 
+                  type="submit"
+                  disabled={submitting}
+                  className="px-6 py-2 bg-primary text-primary-foreground font-bold rounded-lg hover:bg-primary/95 transition-all shadow-md text-sm disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {submitting && <Loader2 size={16} className="animate-spin" />}
                   Confirmar Envío Express
                 </button>
               </div>
@@ -115,34 +264,91 @@ export default function ClientPortalHome() {
           <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
             <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
               <Clock size={20} className="text-primary" />
-              Tus Envíos Activos
+              Tus Envíos Activos ({activeOrders.length})
             </h2>
-            <div className="space-y-3">
-              {[
-                { id: 'ORD-9833', desc: 'Comida + Llaves', dest: 'Santo Domingo Apto 3B', status: 'En ruta', eta: '10 min', pilot: 'Carlos M.' },
-                { id: 'ORD-9830', desc: 'Maletas de Huésped', dest: 'Aeropuerto La Aurora', status: 'Asignado', eta: '35 min', pilot: 'Jorge L.' }
-              ].map((order) => (
-                <div key={order.id} className="flex justify-between items-center p-4 rounded-lg bg-background border border-border hover:border-primary/30 transition-colors">
-                  <div className="flex gap-4 items-center">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                      <Clock size={18} />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-primary">{order.id}</span>
-                        <span className="text-sm font-semibold">{order.desc}</span>
+            
+            {loadingOrders ? (
+              <div className="py-8 flex justify-center items-center">
+                <Loader2 className="animate-spin text-primary" size={24} />
+              </div>
+            ) : activeOrders.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground border border-dashed border-border rounded-lg">
+                No tienes solicitudes de envío activas en este momento.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {activeOrders.map((order) => {
+                  const pilotName = order.driverId ? (drivers[order.driverId]?.name || 'Asignado') : 'Asignando piloto...';
+                  return (
+                    <div key={order.orderId} className="flex flex-col sm:flex-row justify-between sm:items-center p-4 rounded-lg bg-background border border-border hover:border-primary/30 transition-colors gap-3">
+                      <div className="flex gap-4 items-start">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0 mt-0.5">
+                          <Clock size={18} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-primary font-mono">{order.orderId}</span>
+                            <span className="text-sm font-bold text-foreground">{order.cargo?.description}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            <span className="font-semibold">Origen:</span> {order.origin?.address}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            <span className="font-semibold">Destino:</span> {order.destination?.address}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            <span className="font-semibold">Piloto:</span> {pilotName}
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground">Destino: {order.dest} | Piloto: {order.pilot}</p>
+                      <div className="text-left sm:text-right shrink-0">
+                        <span className="inline-block text-xs px-2.5 py-1 rounded-full bg-secondary font-semibold text-foreground">
+                          {getStatusLabel(order.status)}
+                        </span>
+                        <p className="text-xs text-muted-foreground mt-1 font-medium text-emerald-500">
+                          ETA: {getETA(order.status)}
+                        </p>
+                        {order.payment?.codAmount > 0 && (
+                          <p className="text-xs font-bold text-orange-500 mt-0.5">
+                            Cobro COD: Q{order.payment.codAmount.toFixed(2)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* Historial de Envíos */}
+          {pastOrders.length > 0 && (
+            <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
+              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <CheckCircle2 size={18} className="text-emerald-500" />
+                Historial Reciente (Entregados)
+              </h2>
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {pastOrders.slice(0, 10).map((order) => (
+                  <div key={order.orderId} className="flex justify-between items-center p-3 rounded-lg bg-background border border-border text-xs">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-primary">{order.orderId}</span>
+                        <span className="font-semibold text-foreground">{order.cargo?.description}</span>
+                      </div>
+                      <p className="text-slate-400 mt-0.5 truncate max-w-[300px]">{order.destination?.address}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-emerald-500 font-semibold">Entregado</span>
+                      <p className="text-slate-500 font-mono mt-0.5">
+                        {order.completedAt ? new Date(order.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                      </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className="inline-block text-xs px-2.5 py-1 rounded-full bg-secondary font-semibold text-foreground">{order.status}</span>
-                    <p className="text-xs text-muted-foreground mt-1 font-medium text-emerald-500">ETA: {order.eta}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
 
         {/* Right Col: Stats and Billing */}
@@ -161,7 +367,7 @@ export default function ClientPortalHome() {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Envíos este mes:</span>
-                <span className="text-sm font-bold">142</span>
+                <span className="text-sm font-bold">{orders.length}</span>
               </div>
             </div>
           </div>
@@ -174,7 +380,9 @@ export default function ClientPortalHome() {
             </h3>
             <div>
               <span className="text-xs text-muted-foreground">Pendiente de Pago (Corte mensual):</span>
-              <p className="text-3xl font-extrabold text-foreground mt-1">Q2,410.50</p>
+              <p className="text-3xl font-extrabold text-foreground mt-1">
+                Q{(orders.length * 15 * 0.85).toFixed(2)}
+              </p>
             </div>
             <div className="p-3 bg-background rounded-lg border border-border flex justify-between items-center text-xs">
               <span className="text-muted-foreground">Fecha de corte:</span>
