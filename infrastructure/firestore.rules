@@ -5,16 +5,16 @@ service cloud.firestore {
     function isSignedIn() {
       return request.auth != null;
     }
-    function getUserRole() {
-      return request.auth.token.role != null 
-        ? request.auth.token.role 
-        : (exists(/databases/$(database)/documents/users/$(request.auth.uid))
-            ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'client')
+    function getUserRole(auth) {
+      return auth.token.role != null 
+        ? auth.token.role 
+        : (exists(/databases/$(database)/documents/users/$(auth.uid))
+            ? get(/databases/$(database)/documents/users/$(auth.uid)).data.get('role', 'client')
             : 'client');
     }
-    function getUserCompanyId() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('companyId', '')
+    function getUserCompanyId(auth) {
+      return exists(/databases/$(database)/documents/users/$(auth.uid))
+        ? get(/databases/$(database)/documents/users/$(auth.uid)).data.get('companyId', '')
         : '';
     }
     function isOwner(uid) {
@@ -25,52 +25,52 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isOwner(uid);
-      allow update: if isSignedIn() && (isOwner(uid) || getUserRole() == 'admin');
-      allow delete: if isSignedIn() && getUserRole() == 'admin';
+      allow update: if isSignedIn() && (isOwner(uid) || getUserRole(request.auth) == 'admin');
+      allow delete: if isSignedIn() && getUserRole(request.auth) == 'admin';
     }
 
     // Drivers GPS and statistics
     match /drivers/{uid} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && (isOwner(uid) || getUserRole() == 'admin' || getUserRole() == 'dispatcher');
+      allow write: if isSignedIn() && (isOwner(uid) || getUserRole(request.auth) == 'admin' || getUserRole(request.auth) == 'dispatcher');
     }
 
     // Companies
     match /companies/{companyId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && (getUserRole() == 'admin' || getUserRole() == 'super_admin');
+      allow write: if isSignedIn() && (getUserRole(request.auth) == 'admin' || getUserRole(request.auth) == 'super_admin');
     }
 
     // Clients profile metadata
     match /clients/{uid} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && (isOwner(uid) || getUserRole() == 'admin');
+      allow write: if isSignedIn() && (isOwner(uid) || getUserRole(request.auth) == 'admin');
     }
 
     // Orders logistics data
     match /orders/{orderId} {
       allow read: if isSignedIn() && (
-        getUserRole() == 'admin' || 
-        getUserRole() == 'dispatcher' || 
+        getUserRole(request.auth) == 'admin' || 
+        getUserRole(request.auth) == 'dispatcher' || 
         resource.data.clientId == request.auth.uid || 
-        resource.data.clientId == getUserCompanyId() ||
+        resource.data.clientId == getUserCompanyId(request.auth) ||
         resource.data.driverId == request.auth.uid
       );
       // Create is allowed for clients and dispatchers
-      allow create: if isSignedIn() && (getUserRole() == 'client' || getUserRole() == 'dispatcher' || getUserRole() == 'admin');
+      allow create: if isSignedIn() && (getUserRole(request.auth) == 'client' || getUserRole(request.auth) == 'dispatcher' || getUserRole(request.auth) == 'admin');
       // Updates are validated
       allow update: if isSignedIn() && (
-        getUserRole() == 'admin' || 
-        getUserRole() == 'dispatcher' ||
+        getUserRole(request.auth) == 'admin' || 
+        getUserRole(request.auth) == 'dispatcher' ||
         resource.data.driverId == request.auth.uid
       );
-      allow delete: if isSignedIn() && getUserRole() == 'admin';
+      allow delete: if isSignedIn() && getUserRole(request.auth) == 'admin';
     }
 
     // Transactions ledgers (read-only for drivers/clients, write-only for admins)
     match /transactions/{txnId} {
-      allow read: if isSignedIn() && (getUserRole() == 'admin' || resource.data.driverId == request.auth.uid);
-      allow write: if isSignedIn() && getUserRole() == 'admin';
+      allow read: if isSignedIn() && (getUserRole(request.auth) == 'admin' || resource.data.driverId == request.auth.uid);
+      allow write: if isSignedIn() && getUserRole(request.auth) == 'admin';
     }
   }
 }
