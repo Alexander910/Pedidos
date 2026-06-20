@@ -13,10 +13,22 @@ import {
   CheckCircle2,
   Navigation,
   Loader2,
-  Building
+  Building,
+  Lock,
+  Mail,
+  Chrome,
+  ArrowRight,
+  AlertTriangle,
+  LogOut,
+  ShieldAlert
 } from 'lucide-react';
-import { useActiveOrders } from '@envios-ya/firebase';
-import { db } from '@envios-ya/firebase/src/client';
+import { useAuth, useActiveOrders } from '@envios-ya/firebase';
+import { auth, db } from '@envios-ya/firebase/src/client';
+import { 
+  signInWithEmailAndPassword, 
+  signInWithPopup, 
+  GoogleAuthProvider 
+} from 'firebase/auth';
 import { collection, getDocs, doc, setDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 
 const seedDriversIfEmpty = async () => {
@@ -41,11 +53,59 @@ const seedDriversIfEmpty = async () => {
 };
 
 export default function AdminDashboard() {
-  const { orders, loading: ordersLoading } = useActiveOrders('dispatcher', 'dispatcher_admin');
+  const { user, profile, role, loading: authLoading, logout } = useAuth();
+  
+  const activeUserId = user?.uid || '';
+  const { orders, loading: ordersLoading } = useActiveOrders('dispatcher', activeUserId);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [loadingDrivers, setLoadingDrivers] = useState(true);
+
+  // Form login states for inline login if unauthenticated
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const handleFirebaseError = (err: any) => {
+    console.error("Auth error:", err);
+    if (err.code === 'auth/invalid-api-key' || err.message?.includes('API key')) {
+      return "Error de Configuración: Firebase no está configurado correctamente.";
+    }
+    if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+      return "Credenciales inválidas.";
+    }
+    return err.message || "Ocurrió un error al procesar el inicio de sesión.";
+  };
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password.trim()) return;
+
+    setLoginLoading(true);
+    setErrorMessage('');
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (err: any) {
+      setErrorMessage(handleFirebaseError(err));
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const handleGoogleAuth = async () => {
+    setLoginLoading(true);
+    setErrorMessage('');
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (err: any) {
+      setErrorMessage(handleFirebaseError(err));
+    } finally {
+      setLoginLoading(false);
+    }
+  };
 
   const fetchDrivers = () => {
     getDocs(collection(db, 'drivers'))
@@ -60,13 +120,14 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
+    if (!activeUserId) return;
     seedDriversIfEmpty().then(() => {
       fetchDrivers();
     });
-  }, []);
+  }, [activeUserId]);
 
   const handleAssignDriver = async (driverId: string, driverName: string) => {
-    if (!selectedOrder) return;
+    if (!selectedOrder || !activeUserId) return;
     try {
       const orderRef = doc(db, 'orders', selectedOrder.orderId);
       await updateDoc(orderRef, {
@@ -75,7 +136,7 @@ export default function AdminDashboard() {
         timeline: arrayUnion({
           status: 'assigned',
           timestamp: new Date().toISOString(),
-          userId: 'dispatcher_admin'
+          userId: activeUserId
         })
       });
 
@@ -96,6 +157,7 @@ export default function AdminDashboard() {
   };
 
   const advanceOrderStatus = async (orderId: string, currentStatus: string, driverId: string | null) => {
+    if (!activeUserId) return;
     try {
       let nextStatus = '';
       if (currentStatus === 'assigned') nextStatus = 'picking_up';
@@ -110,7 +172,7 @@ export default function AdminDashboard() {
         timeline: arrayUnion({
           status: nextStatus,
           timestamp: new Date().toISOString(),
-          userId: 'dispatcher_admin'
+          userId: activeUserId
         }),
         // If delivered, mark completedAt
         ...(nextStatus === 'delivered' ? { completedAt: new Date().toISOString() } : {})
@@ -136,6 +198,131 @@ export default function AdminDashboard() {
   const activeDeliveries = orders.filter(o => ['assigned', 'picking_up', 'in_transit'].includes(o.status));
   const activeDrivers = drivers.filter(d => d.status === 'busy').length;
   const idleDrivers = drivers.filter(d => d.status === 'idle').length;
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-slate-100">
+        <Loader2 className="w-8 h-8 text-orange-500 animate-spin mb-4" />
+        <p className="text-sm font-semibold text-slate-400">Verificando credenciales...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-slate-100 px-4 relative overflow-hidden">
+        {/* Decorative Blurs */}
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-orange-600/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
+
+        <div className="w-full max-w-md space-y-6 z-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="text-center space-y-2">
+            <span className="text-orange-500 font-extrabold text-3xl tracking-tight block">ENVIOS-YA</span>
+            <h2 className="text-xl font-bold text-white">Consola de Despacho</h2>
+            <p className="text-xs text-slate-400">
+              Administración y asignación de órdenes de envío en Antigua Guatemala.
+            </p>
+          </div>
+
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+            {errorMessage && (
+              <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-xl flex gap-2 items-start leading-relaxed animate-in fade-in duration-200">
+                <AlertTriangle className="shrink-0 mt-0.5 animate-bounce" size={14} />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleEmailAuth} className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Correo Electrónico</label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-3 text-slate-500" size={14} />
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="admin@envios-ya.com"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white placeholder-slate-650 focus:outline-none focus:border-orange-500 transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Contraseña</label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-3 text-slate-500" size={14} />
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white placeholder-slate-650 focus:outline-none focus:border-orange-500 transition-colors"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loginLoading}
+                className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs transition-all shadow-md disabled:opacity-50"
+              >
+                {loginLoading ? <Loader2 className="animate-spin" size={14} /> : 'Iniciar Sesión'}
+              </button>
+            </form>
+
+            <div className="flex items-center gap-3 text-slate-800 text-[9px] font-bold uppercase tracking-wider">
+              <div className="h-px bg-slate-800 flex-1" />
+              <span>O continuar con</span>
+              <div className="h-px bg-slate-800 flex-1" />
+            </div>
+
+            <button
+              onClick={handleGoogleAuth}
+              disabled={loginLoading}
+              className="w-full py-2.5 bg-slate-950 hover:bg-slate-900 border border-slate-800 text-slate-200 hover:text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 transition-all"
+            >
+              <Chrome size={14} className="text-orange-500" />
+              Ingresar con Google
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Check roles: super_admin, admin, dispatcher
+  const hasAccess = role === 'super_admin' || role === 'admin' || role === 'dispatcher';
+  if (!hasAccess) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-slate-100 px-4 relative overflow-hidden">
+        {/* Decorative Blurs */}
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-orange-600/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
+
+        <div className="w-full max-w-md space-y-6 z-10 text-center animate-in fade-in duration-300">
+          <div className="inline-flex p-4 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 mb-2">
+            <ShieldAlert size={40} className="animate-pulse" />
+          </div>
+          <h2 className="text-2xl font-extrabold text-white tracking-tight">Acceso Denegado</h2>
+          <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+            Tu cuenta (<span className="font-bold text-slate-200">{user.email}</span>) tiene el rol de <span className="font-bold text-orange-500 uppercase">{(role || 'client')}</span>.
+          </p>
+          <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+            Se requiere un rol de <span className="font-semibold text-slate-200">Administrador</span> o <span className="font-semibold text-slate-200">Coordinador</span> para acceder a la consola de despacho.
+          </p>
+          <button
+            onClick={() => logout()}
+            className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 font-bold text-xs transition-all shadow-md"
+          >
+            <LogOut size={14} />
+            Cerrar Sesión / Cambiar Cuenta
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-100">
@@ -164,14 +351,23 @@ export default function AdminDashboard() {
             Conductores ({drivers.length})
           </a>
         </nav>
-        <div className="p-4 border-t border-slate-800 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-orange-600 flex items-center justify-center font-bold text-sm text-white">
-            A
+        <div className="p-4 border-t border-slate-800 flex justify-between items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-orange-600 flex items-center justify-center font-bold text-sm text-white shrink-0">
+              {(profile?.name || user?.displayName || user?.email || 'A')[0].toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white truncate">{profile?.name || user?.displayName || user?.email?.split('@')[0] || 'Usuario'}</p>
+              <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{role || 'dispatcher'}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-semibold text-white">Admin Central</p>
-            <p className="text-xs text-slate-500">Antigua GT Dispatch</p>
-          </div>
+          <button 
+            onClick={() => logout()}
+            className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors shrink-0"
+            title="Cerrar Sesión"
+          >
+            <LogOut size={16} />
+          </button>
         </div>
       </aside>
 
