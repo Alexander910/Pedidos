@@ -44,6 +44,15 @@ export default function RbacDashboard() {
   const [selectedRole, setSelectedRole] = useState<UserRole>('super_admin');
   const [simulatedUserId, setSimulatedUserId] = useState('super-1');
 
+  useEffect(() => {
+    const sim = localStorage.getItem('envios_ya_sim_user');
+    if (sim) {
+      const parsed = JSON.parse(sim);
+      setSimulatedUserId(parsed.id);
+      setSelectedRole(parsed.role as UserRole);
+    }
+  }, []);
+
   // Firestore states
   const [companies, setCompanies] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -241,6 +250,12 @@ export default function RbacDashboard() {
                   if (found) {
                     setSimulatedUserId(targetId);
                     setSelectedRole(found.role as UserRole);
+                    localStorage.setItem('envios_ya_sim_user', JSON.stringify({
+                      id: found.id,
+                      name: found.name,
+                      role: found.role,
+                      companyId: found.companyId
+                    }));
                   }
                 }}
                 className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer"

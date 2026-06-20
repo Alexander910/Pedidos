@@ -12,10 +12,15 @@ import {
   Loader2
 } from 'lucide-react';
 import { db } from '@envios-ya/firebase/src/client';
+import { useAuth } from '@envios-ya/firebase';
 import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function ClientPortalHome() {
+  const router = useRouter();
+  const { user, profile, role, loading, logout } = useAuth();
+
   const [originAddress, setOriginAddress] = useState('');
   const [destinationAddress, setDestinationAddress] = useState('');
   const [cargoDescription, setCargoDescription] = useState('');
@@ -24,6 +29,37 @@ export default function ClientPortalHome() {
   const [orders, setOrders] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<Record<string, any>>({});
   const [loadingOrders, setLoadingOrders] = useState(true);
+
+  // Simulated session states
+  const [simulatedUser, setSimulatedUser] = useState<any>(null);
+  const [authInitialized, setAuthInitialized] = useState(false);
+
+  useEffect(() => {
+    const sim = localStorage.getItem('envios_ya_sim_user');
+    if (sim) {
+      setSimulatedUser(JSON.parse(sim));
+    }
+    setAuthInitialized(true);
+  }, []);
+
+  useEffect(() => {
+    if (!authInitialized || loading) return;
+
+    // If no real session and no simulated session, redirect to login
+    if (!user && !simulatedUser) {
+      router.push('/login');
+    }
+  }, [user, simulatedUser, loading, authInitialized, router]);
+
+  const activeUser = profile || simulatedUser || (user ? { name: user.displayName || user.email, email: user.email } : null);
+  const activeCompanyId = profile?.companyId || simulatedUser?.companyId || (user ? 'hotel_santo_domingo' : '');
+  const activeRole = role || simulatedUser?.role || 'client';
+
+  const activeCompanyName = activeCompanyId === 'hotel_santo_domingo' ? 'Casa Santo Domingo' :
+                             activeCompanyId === 'restaurante_antigua' ? 'Restaurante Antigua' :
+                             activeCompanyId === 'envios_ya_corp' ? 'Envios-Ya Corp' : 
+                             activeCompanyId === 'global' ? 'Acceso Global' :
+                             activeCompanyId || 'Socio Comercial';
 
   // 1. Subscribe to drivers to translate driverId to driver name in real-time
   useEffect(() => {
@@ -37,13 +73,19 @@ export default function ClientPortalHome() {
     return () => unsub();
   }, []);
 
-  // 2. Subscribe to orders created by hotel_santo_domingo
+  // 2. Subscribe to orders created by activeCompanyId
   useEffect(() => {
+    if (!authInitialized || loading) return;
+    if (!user && !simulatedUser) return;
+
     setLoadingOrders(true);
     const unsub = onSnapshot(collection(db, 'orders'), (snap) => {
-      const list = snap.docs
-        .map(docSnap => ({ orderId: docSnap.id, ...docSnap.data() }))
-        .filter((o: any) => o.clientId === 'hotel_santo_domingo');
+      let list = snap.docs.map(docSnap => ({ orderId: docSnap.id, ...docSnap.data() }));
+      
+      // If client or partner, filter by company
+      if (activeRole !== 'super_admin' && activeRole !== 'admin') {
+        list = list.filter((o: any) => o.clientId === activeCompanyId);
+      }
       
       // Sort locally by createdAt desc
       list.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
@@ -55,7 +97,7 @@ export default function ClientPortalHome() {
       setLoadingOrders(false);
     });
     return () => unsub();
-  }, []);
+  }, [activeCompanyId, activeRole, authInitialized, loading, user, simulatedUser]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,7 +113,7 @@ export default function ClientPortalHome() {
 
       const newOrder = {
         orderId,
-        clientId: "hotel_santo_domingo",
+        clientId: activeCompanyId || "hotel_santo_domingo",
         driverId: null,
         status: "pending",
         origin: {
@@ -99,7 +141,7 @@ export default function ClientPortalHome() {
           {
             status: "pending",
             timestamp: new Date().toISOString(),
-            userId: "hotel_santo_domingo",
+            userId: activeCompanyId || "hotel_santo_domingo",
           },
         ],
         createdAt: new Date().toISOString(),
@@ -141,8 +183,23 @@ export default function ClientPortalHome() {
     return '15-20 min';
   };
 
+  const handleLogout = async () => {
+    localStorage.removeItem('envios_ya_sim_user');
+    await logout();
+    router.push('/login');
+  };
+
   const activeOrders = orders.filter(o => o.status !== 'delivered');
   const pastOrders = orders.filter(o => o.status === 'delivered');
+
+  if (!authInitialized || loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-3">
+        <Loader2 className="animate-spin text-orange-500" size={32} />
+        <p className="text-xs text-slate-400">Verificando sesión...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -164,14 +221,22 @@ export default function ClientPortalHome() {
               )}
             </button>
             <div className="h-8 w-px bg-border" />
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 bg-secondary/10 px-3 py-1.5 rounded-xl border border-border/40">
               <div className="text-right">
-                <p className="text-sm font-semibold">Casa Santo Domingo</p>
-                <p className="text-[10px] text-muted-foreground">Premium Partner (Guatemala)</p>
+                <p className="text-sm font-semibold text-foreground">{activeUser?.name || 'Invitado'}</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {activeCompanyName} ({activeRole === 'super_admin' ? 'Super Admin' :
+                   activeRole === 'admin' ? 'Admin' :
+                   activeRole === 'pilot' ? 'Piloto' :
+                   activeRole === 'partner' ? 'Socio' : 'Cliente'})
+                </p>
               </div>
-              <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center">
-                <Building size={16} className="text-primary" />
-              </div>
+              <button 
+                onClick={handleLogout}
+                className="ml-1.5 px-2 py-0.5 text-[10px] font-bold text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/30 bg-red-500/5 hover:bg-red-500/10 rounded-lg transition-all"
+              >
+                Salir
+              </button>
             </div>
           </div>
         </div>
