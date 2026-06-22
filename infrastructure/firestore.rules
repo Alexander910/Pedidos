@@ -9,12 +9,16 @@ service cloud.firestore {
       return auth.token.role != null 
         ? auth.token.role 
         : (exists(/databases/$(database)/documents/users/$(auth.uid))
-            ? get(/databases/$(database)/documents/users/$(auth.uid)).data.get('role', 'client')
+            ? ('role' in get(/databases/$(database)/documents/users/$(auth.uid)).data
+                ? get(/databases/$(database)/documents/users/$(auth.uid)).data.role
+                : 'client')
             : 'client');
     }
     function getUserCompanyId(auth) {
       return exists(/databases/$(database)/documents/users/$(auth.uid))
-        ? get(/databases/$(database)/documents/users/$(auth.uid)).data.get('companyId', '')
+        ? ('companyId' in get(/databases/$(database)/documents/users/$(auth.uid)).data
+            ? get(/databases/$(database)/documents/users/$(auth.uid)).data.companyId
+            : '')
         : '';
     }
     function isOwner(uid) {
